@@ -12,26 +12,18 @@ public class Main {
     public static void main(String[] args) throws IOException, InterruptedException {
         System.out.println("Hello, World!");
 
-
-
-        HttpResponse<String> response = ApiService.sendHttpRequest("pokemon/1");
-
-        String body = response.body();
-
-        PokemonSpecie pokemonSpecie = ApiService.serializePokemonSpecie(response.body());
-
-        System.out.println(pokemonSpecie.getName());
-
         DataManager dataManager = new DataManager();
 
-        try {
-            dataManager.insertPokemonSpecie(pokemonSpecie);
-        } catch (Exception error) {
-            SimpleLogger.error(error.getMessage());
+        for (int pokemonIndex = 1; pokemonIndex <=10; pokemonIndex++) {
+            HttpResponse<String> response = ApiService.sendHttpRequest("pokemon/" + pokemonIndex);
+            PokemonSpecie pokemonSpecie = ApiService.serializePokemonSpecie(response.body());
+
+            try {
+                dataManager.insertPokemonSpecie(pokemonSpecie);
+                SimpleLogger.info("[+] Added " + pokemonSpecie.getName() + " [" + pokemonIndex + "]");
+            } catch (Exception error) {
+                SimpleLogger.error(error.getMessage());
+            }
         }
-
-
-
-
     }
 }

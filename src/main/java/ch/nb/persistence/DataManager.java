@@ -53,7 +53,7 @@ public class DataManager {
 
     public void insertPokemonSpecie(PokemonSpecie pokemonSpecie) throws SQLException {
 
-        String sqlQuery = "INSERT INTO POKEMON_SPECIES (NAME, STAT_ID) VALUES (?, ?)";
+        String sqlQuery = "INSERT INTO POKEMON_SPECIE (NAME, STAT_ID) VALUES (?, ?)";
         int nameIndex = 1;
         int statIndex = 2;
 

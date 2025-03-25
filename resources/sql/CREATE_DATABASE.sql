@@ -151,6 +151,18 @@ CREATE OR REPLACE PROCEDURE simulate_battle(
     v_speed1          NUMBER;
     v_speed2          NUMBER;
 
+    -- Fight variables
+    v_attacker_name    VARCHAR(255);
+    v_defender_name    VARCHAR(255);
+    v_attacker_id      NUMBER;
+    v_defender_id     NUMBER;
+    v_attacker_hp      NUMBER;
+    v_defender_hp      NUMBER;
+    v_attacker_attack  NUMBER;
+    v_defender_attack  NUMBER;
+    v_attacker_defense NUMBER;
+    v_defender_defense NUMBER;
+
     -- Damage calculation
     v_damage          NUMBER;
 
@@ -197,8 +209,48 @@ FROM STAT s
          JOIN POKEMON_SPECIE ps ON ps.STAT_ID = s.ID
 WHERE ps.ID = p_pokemon_specie2_id;
 
--- Battle loop
-WHILE v_hp1 > 0 AND v_hp2 > 0 LOOP
+DBMS_OUTPUT.PUT_LINE(v_pokemon1_name || ' has ' || v_hp1 || ' hp');
+    DBMS_OUTPUT.PUT_LINE(v_pokemon2_name || ' has ' || v_hp2 || ' hp');
+
+    -- Determine turn order
+    IF v_speed1 >= v_speed2 THEN
+        v_attacker := v_pokemon1;
+        v_defender := v_pokemon2;
+
+        v_attacker_name := v_pokemon1_name;
+        v_attacker_id := v_pokemon1.ID;
+        v_attacker_hp := v_hp1;
+        v_attacker_attack := v_attack1;
+        v_attacker_defense := v_defense1;
+
+        v_defender_name := v_pokemon2_name;
+        v_defender_id := v_pokemon2.ID;
+        v_defender_hp := v_hp2;
+        v_defender_attack := v_attack2;
+        v_defender_defense := v_defense2;
+
+        DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' attacks first (higher speed)');
+ELSE
+        v_attacker := v_pokemon2;
+        v_defender := v_pokemon1;
+
+        v_attacker_id := v_pokemon2.ID;
+        v_attacker_name := v_pokemon2_name;
+        v_attacker_hp := v_hp2;
+        v_attacker_attack := v_attack2;
+        v_attacker_defense := v_defense2;
+
+        v_defender_id := v_pokemon1.ID;
+        v_defender_name := v_pokemon1_name;
+        v_defender_hp := v_hp1;
+        v_defender_attack := v_attack1;
+        v_defender_defense := v_defense1;
+
+        DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' attacks first (higher speed)');
+END IF;
+
+    -- Battle loop
+    WHILE v_attacker_hp > 0 AND v_defender_hp > 0 LOOP
             DBMS_OUTPUT.PUT_LINE('--- ROUND ' || v_round_number || ' ---');
 
             -- Create round
@@ -206,63 +258,54 @@ INSERT INTO ROUND (BATTLE_ID, ROUND_NUMBER)
 VALUES (v_battle_id, v_round_number)
     RETURNING ID INTO v_round_id;
 
-
--- Determine turn order
-IF v_speed1 >= v_speed2 THEN
-                v_attacker := v_pokemon1;
-                v_defender := v_pokemon2;
-                DBMS_OUTPUT.PUT_LINE(v_pokemon1_name || ' attacks first (higher speed)');
-ELSE
-                v_attacker := v_pokemon2;
-                v_defender := v_pokemon1;
-                DBMS_OUTPUT.PUT_LINE(v_pokemon2_name || ' attacks first (higher speed)');
-END IF;
-
-            -- First attack
-            v_damage := calculate_damage(
-                p_attacker_attack => v_attack1,
-                p_defender_defense => v_defense2
+-- First attack
+v_damage := calculate_damage(
+                p_attacker_attack => v_attacker_attack,
+                p_defender_defense => v_defender_defense
             );
-            DBMS_OUTPUT.PUT_LINE(v_pokemon1_name || ' attacks ' || v_pokemon2_name ||
+            DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' attacks ' || v_defender_name ||
                              ' for ' || v_damage || ' damage');
 
-            log_action(v_round_id, v_pokemon1.id, v_pokemon2.id, v_hp1, v_damage);
-            v_hp2 := GREATEST(v_hp2 - v_damage, 0);
 
-            DBMS_OUTPUT.PUT_LINE(v_pokemon2_name || ' HP reduced to ' || v_hp2);
+            -- Log attacker action
+            log_action(v_round_id, v_attacker_id, v_defender_id, v_attacker_hp, v_damage);
+            v_defender_hp := GREATEST(v_defender_hp - v_damage, 0);
+
+            DBMS_OUTPUT.PUT_LINE(v_defender_name || ' HP reduced to ' || v_defender_hp);
 
             -- Second attack if defender still alive
-            IF v_hp2 > 0 THEN
+            IF v_defender_hp > 0 THEN
                 v_damage := calculate_damage(
-                    p_attacker_attack => v_attack2,
-                    p_defender_defense => v_defense1
+                    p_attacker_attack => v_defender_attack,
+                    p_defender_defense => v_attacker_defense
                 );
-                DBMS_OUTPUT.PUT_LINE(v_pokemon2_name || ' attacks back ' || v_pokemon1_name ||
+                DBMS_OUTPUT.PUT_LINE(v_defender_name || ' attacks back ' || v_attacker_name ||
                                  ' for ' || v_damage || ' damage');
 
-                log_action(v_round_id, v_pokemon2.id, v_pokemon1.id, v_hp2, v_damage);
-                v_hp1 := GREATEST(v_hp1 - v_damage, 0);
+                -- Log defender action
+                log_action(v_round_id, v_defender_id, v_attacker_id, v_defender_hp, v_damage);
+                v_attacker_hp := GREATEST(v_attacker_hp - v_damage, 0);
 
-                DBMS_OUTPUT.PUT_LINE(v_pokemon1_name || ' HP reduced to ' || v_hp1);
-ELSE
-                DBMS_OUTPUT.PUT_LINE(v_pokemon2_name || ' has fainted!');
+                DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' HP reduced to ' || v_attacker_hp);
 END IF;
 
             v_round_number := v_round_number + 1;
 END LOOP;
 
-    -- Determine winner
-    IF v_hp1 > 0 THEN
-            v_winner_id := v_pokemon1.id;
-            DBMS_OUTPUT.PUT_LINE('=== BATTLE OVER ===');
-            DBMS_OUTPUT.PUT_LINE(v_pokemon1_name || ' wins with ' || v_hp1 || ' HP remaining!');
+    -- End of the battle, determine winner
+    IF v_attacker_hp > 0 THEN
+        DBMS_OUTPUT.PUT_LINE(v_defender_name || ' has fainted!');
+        v_winner_id := v_attacker_id;
+        DBMS_OUTPUT.PUT_LINE('=== BATTLE OVER ===');
+        DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' wins with ' || v_attacker_hp || ' HP remaining!');
 ELSE
-            v_winner_id := v_pokemon2.id;
-            DBMS_OUTPUT.PUT_LINE('=== BATTLE OVER ===');
-            DBMS_OUTPUT.PUT_LINE(v_pokemon2_name || ' wins with ' || v_hp2 || ' HP remaining!');
+        DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' has fainted!');
+        v_winner_id := v_defender_id;
+        DBMS_OUTPUT.PUT_LINE('=== BATTLE OVER ===');
+        DBMS_OUTPUT.PUT_LINE(v_defender_name || ' wins with ' || v_defender_hp || ' HP remaining!');
 END IF;
 
-        -- Update battle with winner
+    -- Update battle with winner
 UPDATE BATTLE SET WINNER_BATTLE_POKEMON_ID = v_winner_id WHERE ID = v_battle_id;
 
 -- Generate and store battle log

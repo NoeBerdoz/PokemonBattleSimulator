@@ -14,4 +14,8 @@ public class PokemonSpecie {
     public String getName() {
         return name;
     }
+
+    public Stats getStats() {
+        return stats;
+    }
 }

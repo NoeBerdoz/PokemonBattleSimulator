@@ -378,8 +378,6 @@ BEGIN
                                                             "hp", -- Acting Pokemon's HP *before* this action
                                                             ps_target.NAME AS "target", -- Target Pokemon's name
                                                             a.DAMAGE AS "damage" -- Damage dealt in this action
-                                                 -- Note: The "status" attribute (e.g., "K-O") is omitted here.
-                                                 -- See discussion below regarding the XSD and data availability.
                                                      )
                                                  ) ORDER BY
                                                  a.ID -- Order actions within a round chronologically (assuming ID sequence implies order)
@@ -387,7 +385,7 @@ BEGIN
                               ) ORDER BY r.ROUND_NUMBER -- Order rounds chronologically
                       ) -- End XMLAgg for Rounds
            ) -- End XMLElement for BattleLog
-    INTO v_xml_document -- Store the generated XML into the variable
+    INTO v_xml_document
     FROM ROUND r
              JOIN ACTION a ON r.ID = a.ROUND_ID
              JOIN BATTLE_POKEMON bp_acting ON a.ACTING_BATTLE_POKEMON_ID = bp_acting.ID
@@ -395,8 +393,10 @@ BEGIN
              JOIN BATTLE_POKEMON bp_target ON a.TARGET_BATTLE_POKEMON_ID = bp_target.ID
              JOIN POKEMON_SPECIE ps_target ON bp_target.POKEMON_SPECIE_ID = ps_target.ID
     WHERE r.BATTLE_ID = p_battle_id -- Filter for the specific battle
-    GROUP BY r.ID, r.ROUND_NUMBER;
-    -- Group actions by Round ID/Number to aggregate Actions per Round
+    GROUP BY r.ID, r.ROUND_NUMBER; -- Group actions by Round ID/Number to aggregate Actions per Round
+
+    -- Validate the XML against the XSD schema
+        v_xml_document.SchemaValidate('BattleLogSchema.xsd', TRUE);
 
     -- Insert the generated XML into the BATTLE_LOG table
     -- A new row is inserted each time, providing versioning via GENERATION_TIMESTAMP
@@ -410,6 +410,9 @@ EXCEPTION
         -- This handles cases where a battle might exist but has no rounds/actions yet
         DBMS_OUTPUT.PUT_LINE('Warning: No rounds or actions found for Battle ID: ' || p_battle_id ||
                              '. No XML log generated.');
+    WHEN XMLType.SchemaValidateError THEN
+        DBMS_OUTPUT.PUT_LINE('Error: XML schema validation failed for Battle ID ' || p_battle_id);
+        RAISE;
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error generating XML log for Battle ID ' || p_battle_id || ': ' || SQLERRM);
         -- Consider logging the error more formally or re-raising if needed
@@ -428,4 +431,58 @@ END;
 BEGIN
     generate_battle_log(p_battle_id => 1);
     COMMIT;
+END;
+
+-- Registration of the XSD Schema
+BEGIN
+    DBMS_XMLSCHEMA.registerSchema(
+            SCHEMAURL => 'BattleLogSchema.xsd', -- A unique URI for your schema
+            SCHEMADOC => XMLType(
+                    '<?xml version="1.0" encoding="UTF-8"?>
+                    <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+                        <xs:element name="BattleLog">
+                            <xs:complexType>
+                                <xs:sequence>
+                                    <xs:element name="Round" maxOccurs="unbounded">
+                                        <xs:complexType>
+                                            <xs:sequence>
+                                                <xs:element name="Action" maxOccurs="unbounded">
+                                                    <xs:complexType>
+                                                        <xs:attribute name="pokemon" type="xs:string" use="required"/>
+                                                        <xs:attribute name="hp" type="xs:integer" use="required"/>
+                                                        <xs:attribute name="target" type="xs:string" use="required"/>
+                                                        <xs:attribute name="damage" type="xs:integer" use="required"/>
+                                                    </xs:complexType>
+                                                </xs:element>
+                                            </xs:sequence>
+                                            <xs:attribute name="number" type="xs:integer" use="required"/>
+                                        </xs:complexType>
+                                    </xs:element>
+                                </xs:sequence>
+                            </xs:complexType>
+                        </xs:element>
+
+                    </xs:schema>'
+                         )
+    );
+END;
+
+-- Helper select to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
+SELECT *
+FROM BATTLE_LOG
+WHERE XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd') = 1;
+
+-- Helper loop to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
+DECLARE
+    v_valid NUMBER;
+BEGIN
+    FOR record IN (SELECT ID, XML_DOCUMENT, XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd') AS IS_VALID
+                   FROM BATTLE_LOG) LOOP
+            IF record.IS_VALID = 1 THEN
+                DBMS_OUTPUT.PUT_LINE('Battle Log ID ' || record.ID || ': XML is VALID.');
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Battle Log ID ' || record.ID || ': XML is INVALID.');
+            END IF;
+        END LOOP;
 END;

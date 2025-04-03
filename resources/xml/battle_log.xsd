@@ -1,4 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
     <xs:element name="BattleLog">
         <xs:complexType>
             <xs:sequence>
@@ -8,17 +10,17 @@
                             <xs:element name="Action" maxOccurs="unbounded">
                                 <xs:complexType>
                                     <xs:attribute name="pokemon" type="xs:string" use="required"/>
-                                    <xs:attribute name="hp" type="xs:nonNegativeInteger" use="required"/>
+                                    <xs:attribute name="hp" type="xs:integer" use="required"/>
                                     <xs:attribute name="target" type="xs:string" use="required"/>
-                                    <xs:attribute name="damage" type="xs:nonNegativeInteger" use="required"/>
-                                    <xs:attribute name="status" type="xs:string" use="optional"/>
+                                    <xs:attribute name="damage" type="xs:integer" use="required"/>
                                 </xs:complexType>
                             </xs:element>
                         </xs:sequence>
-                        <xs:attribute name="number" type="xs:positiveInteger" use="required"/>
+                        <xs:attribute name="number" type="xs:integer" use="required"/>
                     </xs:complexType>
                 </xs:element>
             </xs:sequence>
         </xs:complexType>
     </xs:element>
+
 </xs:schema>

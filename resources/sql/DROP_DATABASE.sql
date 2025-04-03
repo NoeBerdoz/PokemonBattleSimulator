@@ -23,3 +23,9 @@ DROP TABLE STAT CASCADE CONSTRAINTS;
 DROP PROCEDURE simulate_battle;
 DROP PROCEDURE log_action;
 DROP FUNCTION calculate_damage;
+DROP FUNCTION generate_battle_log;
+
+BEGIN
+  -- Delete the schema, if it already exists.
+  DBMS_XMLSCHEMA.deleteSchema('BattleLogSchema.xsd',4);
+END;

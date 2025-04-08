@@ -349,6 +349,7 @@ CREATE OR REPLACE PROCEDURE generate_battle_log(
 )
 AS
     v_xml_document  XMLTYPE;
+    v_is_xml_valid NUMBER;
     v_battle_exists NUMBER;
 BEGIN
     -- Check if the battle exists to avoid errors
@@ -395,9 +396,6 @@ BEGIN
     WHERE r.BATTLE_ID = p_battle_id -- Filter for the specific battle
     GROUP BY r.ID, r.ROUND_NUMBER; -- Group actions by Round ID/Number to aggregate Actions per Round
 
-    -- Validate the XML against the XSD schema
-        v_xml_document.SchemaValidate('BattleLogSchema.xsd', TRUE);
-
     -- Insert the generated XML into the BATTLE_LOG table
     -- A new row is inserted each time, providing versioning via GENERATION_TIMESTAMP
     INSERT INTO BATTLE_LOG (BATTLE_ID, XML_DOCUMENT) -- GENERATION_TIMESTAMP gets DEFAULT value
@@ -405,14 +403,23 @@ BEGIN
 
     DBMS_OUTPUT.PUT_LINE('XML log generated and stored successfully for Battle ID: ' || p_battle_id);
 
+    -- Validate the XML against the XSD schema
+    v_is_xml_valid := validate_battle_schema(p_battle_id => p_battle_id);
+    DBMS_OUTPUT.PUT_LINE('[DEBUG] Battle Log ' || p_battle_id || ' VALUE validate_battle_schema returned: ' || v_is_xml_valid);
+
+    IF v_is_xml_valid = 1 THEN
+        DBMS_OUTPUT.PUT_LINE('Battle Log ' || p_battle_id || ' XML is valid.');
+    ELSIF v_is_xml_valid = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Battle Log ' || p_battle_id || ' XML is NOT valid or log does not exist.');
+    ELSE -- l_is_xml_valid = -1 (or whatever error code you chose)
+        DBMS_OUTPUT.PUT_LINE('Error occurred during XML validation for Battle Log ' || p_battle_id);
+    END IF;
+
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         -- This handles cases where a battle might exist but has no rounds/actions yet
         DBMS_OUTPUT.PUT_LINE('Warning: No rounds or actions found for Battle ID: ' || p_battle_id ||
                              '. No XML log generated.');
-    WHEN XMLType.SchemaValidateError THEN
-        DBMS_OUTPUT.PUT_LINE('Error: XML schema validation failed for Battle ID ' || p_battle_id);
-        RAISE;
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error generating XML log for Battle ID ' || p_battle_id || ': ' || SQLERRM);
         -- Consider logging the error more formally or re-raising if needed
@@ -429,9 +436,12 @@ END;
 
 -- Example of XML generation (assuming simulate_battle has already run for battle_id 1)
 BEGIN
-    generate_battle_log(p_battle_id => 1);
+    generate_battle_log(p_battle_id => 4);
     COMMIT;
 END;
+
+SELECT * FROM BATTLE_LOG;
+SELECT * FROM BATTLE;
 
 -- Registration of the XSD Schema
 BEGIN
@@ -473,6 +483,9 @@ SELECT *
 FROM BATTLE_LOG
 WHERE XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd') = 1;
 
+SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
+FROM BATTLE_LOG;
+
 -- Helper loop to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
 DECLARE
     v_valid NUMBER;
@@ -486,3 +499,26 @@ BEGIN
             END IF;
         END LOOP;
 END;
+
+CREATE OR REPLACE FUNCTION validate_battle_schema(
+    p_battle_id IN NUMBER
+) RETURN NUMBER IS
+    v_is_valid NUMBER;
+BEGIN
+
+    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
+    INTO v_is_valid
+    FROM BATTLE_LOG
+    WHERE BATTLE_ID = p_battle_id;
+
+    RETURN v_is_valid;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_id ' || p_battle_id);
+        RETURN -1;
+
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_id ' || p_battle_id || ': ' || SQLCODE || ' - ' || SQLERRM);
+        RETURN -1;
+END validate_battle_schema;

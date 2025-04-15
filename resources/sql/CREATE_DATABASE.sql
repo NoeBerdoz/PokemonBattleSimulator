@@ -90,6 +90,8 @@ CREATE TABLE BATTLE_LOG
     BATTLE_ID    NUMBER                                        NOT NULL,
     XML_DOCUMENT XMLTYPE,
     CREATED_AT   TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, -- Records when the log was inserted
+    IS_VALID     NUMBER(1, 0) DEFAULT 0 NOT NULL,
+    CONSTRAINT CH_IS_VALID CHECK (IS_VALID IN (0, 1)),
     CONSTRAINT FK_BATTLE_LOG_BATTLE FOREIGN KEY (BATTLE_ID) REFERENCES BATTLE (ID)
 ) XMLTYPE XML_DOCUMENT STORE AS SECUREFILE BINARY XML;
 
@@ -352,7 +354,7 @@ AS
     v_is_xml_valid NUMBER;
     v_battle_exists NUMBER;
 BEGIN
-    -- Check if the battle exists to avoid errors
+    -- Check if the battle doesn't exist to avoid errors
     SELECT COUNT(*)
     INTO v_battle_exists
     FROM BATTLE

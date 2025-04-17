@@ -429,22 +429,6 @@ EXCEPTION
 END generate_battle_log;
 /
 
-BEGIN
-    simulate_battle(
-            p_pokemon_specie1_id => 1, -- Bulbasaur
-            p_pokemon_specie2_id => 6 -- Charizard
-    );
-END;
-
--- Example of XML generation (assuming simulate_battle has already run for battle_id 1)
-BEGIN
-    generate_battle_log(p_battle_id => 4);
-    COMMIT;
-END;
-
-SELECT * FROM BATTLE_LOG;
-SELECT * FROM BATTLE;
-
 -- Registration of the XSD Schema
 BEGIN
     DBMS_XMLSCHEMA.registerSchema(
@@ -480,6 +464,43 @@ BEGIN
     );
 END;
 
+CREATE OR REPLACE FUNCTION validate_battle_schema(
+    p_battle_id IN NUMBER
+) RETURN NUMBER IS
+    v_is_valid NUMBER;
+BEGIN
+
+    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
+    INTO v_is_valid
+    FROM BATTLE_LOG
+    WHERE BATTLE_ID = p_battle_id;
+
+    IF v_is_valid = 1 THEN
+        UPDATE BATTLE_LOG
+        SET IS_VALID = 1
+        WHERE BATTLE_ID = p_battle_id;
+    ELSE
+        UPDATE BATTLE_LOG
+        SET IS_VALID = 0
+        WHERE BATTLE_ID = p_battle_id;
+    END IF;
+
+    RETURN v_is_valid;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_id ' || p_battle_id);
+        RETURN -1;
+
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_id ' || p_battle_id || ': ' || SQLCODE || ' - ' || SQLERRM);
+        RETURN -1;
+END validate_battle_schema;
+
+------------------------------------------------------------------------------------------------------------------------
+    -- PLAYGROUND
+------------------------------------------------------------------------------------------------------------------------
+
 -- Helper select to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
 SELECT *
 FROM BATTLE_LOG
@@ -502,25 +523,18 @@ BEGIN
         END LOOP;
 END;
 
-CREATE OR REPLACE FUNCTION validate_battle_schema(
-    p_battle_id IN NUMBER
-) RETURN NUMBER IS
-    v_is_valid NUMBER;
 BEGIN
+    simulate_battle(
+            p_pokemon_specie1_id => 9, -- Blastoise
+            p_pokemon_specie2_id => 6 -- Charizard
+    );
+END;
 
-    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
-    INTO v_is_valid
-    FROM BATTLE_LOG
-    WHERE BATTLE_ID = p_battle_id;
+-- Example of XML generation (assuming simulate_battle has already run for battle_id 1)
+BEGIN
+    generate_battle_log(p_battle_id => 4);
+    COMMIT;
+END;
 
-    RETURN v_is_valid;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_id ' || p_battle_id);
-        RETURN -1;
-
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_id ' || p_battle_id || ': ' || SQLCODE || ' - ' || SQLERRM);
-        RETURN -1;
-END validate_battle_schema;
+SELECT * FROM BATTLE_LOG;
+SELECT * FROM BATTLE;

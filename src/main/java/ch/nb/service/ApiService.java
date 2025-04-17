@@ -62,6 +62,12 @@ public class ApiService {
 
         String name = jsonResponse.get("name").getAsString();
 
+        // Force the first char in name to be Upper case.
+        char firstChar = name.charAt(0);
+        if (!Character.isUpperCase(firstChar)) {
+            name = Character.toUpperCase(firstChar) + name.substring(1);
+        }
+
         return new PokemonSpecie(name, stats);
     }
 

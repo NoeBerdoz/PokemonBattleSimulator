@@ -39,6 +39,12 @@ public class DataManager {
                 if (generatedKeys.next()) {
                     String generatedId = generatedKeys.getString(1);
 
+                    String rawSql = String.format(
+                            "INSERT INTO STAT (HP, SPEED, ATTACK, DEFENSE, SPECIAL_ATTACK, SPECIAL_DEFENSE) VALUES (%d, %d, %d, %d, %d, %d);",
+                            stats.getHp(), stats.getSpeed(), stats.getAttack(), stats.getDefense(), stats.getSpecialAttack(), stats.getSpecialDefense()
+                    );
+                    System.out.println(rawSql);
+
                     return Integer.parseInt(generatedId);
                 }
             }
@@ -65,6 +71,12 @@ public class DataManager {
             PreparedStatement statement = connection.prepareStatement(sqlQuery, new String[]{"ID"});
             statement.setString(nameIndex, pokemonSpecie.getName());
             statement.setInt(statIndex, statForeignKey);
+
+            String rawSql = String.format(
+                    "INSERT INTO POKEMON_SPECIE (NAME, STAT_ID) VALUES ('%s', %d);",
+                    pokemonSpecie.getName(), statForeignKey
+            );
+            System.out.println(rawSql);
 
             statement.executeUpdate();
 

@@ -10,7 +10,7 @@ import java.net.http.HttpResponse;
 
 public class Main {
     public static void main(String[] args) throws IOException, InterruptedException {
-        System.out.println("Hello, World!");
+        SimpleLogger.info("------ STARTING Pokemon Inserter -----");
 
         DataManager dataManager = new DataManager();
 
@@ -20,7 +20,7 @@ public class Main {
 
             try {
                 dataManager.insertPokemonSpecie(pokemonSpecie);
-                SimpleLogger.info("[+] Added " + pokemonSpecie.getName() + " [" + pokemonIndex + "]");
+                // SimpleLogger.info("[+] Added " + pokemonSpecie.getName() + " [" + pokemonIndex + "]");
             } catch (Exception error) {
                 SimpleLogger.error(error.getMessage());
             }

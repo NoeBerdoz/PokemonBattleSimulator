@@ -338,7 +338,6 @@ BEGIN
     -- Generate and store battle log
     generate_battle_log(p_battle_id => v_battle_id);
 
-    COMMIT;
 EXCEPTION
     WHEN OTHERS THEN
         ROLLBACK;
@@ -407,9 +406,8 @@ BEGIN
 
     DBMS_OUTPUT.PUT_LINE('XML log generated and stored successfully with ID: ' || v_inserted_battle_log_id);
 
-    -- Validate the XML against the XSD schema
+    -- Get the validation value of the XML against the XSD schema
     v_is_xml_valid := get_battle_log_xsd_validation(p_battle_log_id => v_inserted_battle_log_id);
-    DBMS_OUTPUT.PUT_LINE('[DEBUG] Battle Log ' || v_inserted_battle_log_id || ' VALUE validate_battle_schema returned: ' || v_is_xml_valid);
 
     -- Update the BATTLE_LOG.XML_IS_VALID value based on result
     IF v_is_xml_valid = 1 THEN
@@ -429,18 +427,23 @@ EXCEPTION
                              '. No XML log generated.');
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error generating XML log for Battle ID ' || p_battle_id || ': ' || SQLERRM);
-        -- Consider logging the error more formally or re-raising if needed
-        RAISE; -- Re-raise the exception after logging
+        RAISE;
 END generate_battle_log;
 /
 
 -- Registration of the XSD Schema
 BEGIN
     DBMS_XMLSCHEMA.registerSchema(
-            SCHEMAURL => 'BattleLogSchema.xsd', -- A unique URI for your schema
+            SCHEMAURL => 'BattleLogSchemaV1.xsd', -- should normally be a URI
             SCHEMADOC => XMLType(
                     '<?xml version="1.0" encoding="UTF-8"?>
                     <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+                        <xs:simpleType name="PokemonNameType">
+                            <xs:restriction base="xs:string">
+                                <xs:pattern value="[A-Z][a-z]*"/>
+                            </xs:restriction>
+                        </xs:simpleType>
 
                         <xs:element name="BattleLog">
                             <xs:complexType>
@@ -450,9 +453,9 @@ BEGIN
                                             <xs:sequence>
                                                 <xs:element name="Action" maxOccurs="unbounded">
                                                     <xs:complexType>
-                                                        <xs:attribute name="pokemon" type="xs:string" use="required"/>
+                                                        <xs:attribute name="pokemon" type="PokemonNameType" use="required"/>
                                                         <xs:attribute name="hp" type="xs:integer" use="required"/>
-                                                        <xs:attribute name="target" type="xs:string" use="required"/>
+                                                        <xs:attribute name="target" type="PokemonNameType" use="required"/>
                                                         <xs:attribute name="damage" type="xs:integer" use="required"/>
                                                     </xs:complexType>
                                                 </xs:element>
@@ -467,6 +470,7 @@ BEGIN
                     </xs:schema>'
                          )
     );
+    COMMIT;
 END;
 
 CREATE OR REPLACE FUNCTION get_battle_log_xsd_validation(
@@ -475,7 +479,7 @@ CREATE OR REPLACE FUNCTION get_battle_log_xsd_validation(
     v_is_valid NUMBER;
 BEGIN
 
-    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
+    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd')
     INTO v_is_valid
     FROM BATTLE_LOG
     WHERE ID = p_battle_log_id;
@@ -499,16 +503,16 @@ END get_battle_log_xsd_validation;
 -- Helper select to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
 SELECT *
 FROM BATTLE_LOG
-WHERE XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd') = 1;
+WHERE XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd') = 1;
 
-SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
+SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd')
 FROM BATTLE_LOG;
 
 -- Helper loop to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
 DECLARE
     v_valid NUMBER;
 BEGIN
-    FOR record IN (SELECT ID, XML_DOCUMENT, XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd') AS IS_VALID
+    FOR record IN (SELECT ID, XML_DOCUMENT, XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd') AS IS_VALID
                    FROM BATTLE_LOG) LOOP
             IF record.IS_VALID = 1 THEN
                 DBMS_OUTPUT.PUT_LINE('Battle Log ID ' || record.ID || ': XML is VALID.');
@@ -530,6 +534,3 @@ BEGIN
     generate_battle_log(p_battle_id => 63);
     COMMIT;
 END;
-
-SELECT * FROM BATTLE_LOG;
-SELECT * FROM BATTLE;

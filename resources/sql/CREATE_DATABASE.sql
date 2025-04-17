@@ -121,6 +121,29 @@ BEGIN
     RETURN GREATEST(ROUND(v_base_damage * v_random_factor), 1);
 END calculate_damage;
 
+CREATE OR REPLACE FUNCTION get_battle_log_xsd_validation(
+    p_battle_log_id IN BATTLE_LOG.ID%type
+) RETURN NUMBER IS
+    v_is_valid NUMBER;
+BEGIN
+
+    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd')
+    INTO v_is_valid
+    FROM BATTLE_LOG
+    WHERE ID = p_battle_log_id;
+
+    RETURN v_is_valid;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_log_id ' || p_battle_log_id);
+        RETURN -1;
+
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_log_id ' || p_battle_log_id || ': ' || SQLCODE || ' - ' || SQLERRM);
+        RETURN -1;
+END get_battle_log_xsd_validation;
+
 -----------------------------------------------------------------------
 -- PROCEDURES
 -----------------------------------------------------------------------
@@ -472,29 +495,6 @@ BEGIN
     );
     COMMIT;
 END;
-
-CREATE OR REPLACE FUNCTION get_battle_log_xsd_validation(
-    p_battle_log_id IN BATTLE_LOG.ID%type
-) RETURN NUMBER IS
-    v_is_valid NUMBER;
-BEGIN
-
-    SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd')
-    INTO v_is_valid
-    FROM BATTLE_LOG
-    WHERE ID = p_battle_log_id;
-
-    RETURN v_is_valid;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_log_id ' || p_battle_log_id);
-        RETURN -1;
-
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_log_id ' || p_battle_log_id || ': ' || SQLCODE || ' - ' || SQLERRM);
-        RETURN -1;
-END get_battle_log_xsd_validation;
 
 ------------------------------------------------------------------------------------------------------------------------
     -- PLAYGROUND

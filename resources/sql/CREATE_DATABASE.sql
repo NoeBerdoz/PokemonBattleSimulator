@@ -90,8 +90,8 @@ CREATE TABLE BATTLE_LOG
     BATTLE_ID    NUMBER                                        NOT NULL,
     XML_DOCUMENT XMLTYPE,
     CREATED_AT   TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, -- Records when the log was inserted
-    IS_VALID     NUMBER(1, 0) DEFAULT 0 NOT NULL,
-    CONSTRAINT CH_IS_VALID CHECK (IS_VALID IN (0, 1)),
+    XML_IS_VALID     NUMBER(1, 0) DEFAULT 0 NOT NULL,
+    CONSTRAINT CH_XML_IS_VALID CHECK (XML_IS_VALID IN (0, 1)),
     CONSTRAINT FK_BATTLE_LOG_BATTLE FOREIGN KEY (BATTLE_ID) REFERENCES BATTLE (ID)
 ) XMLTYPE XML_DOCUMENT STORE AS SECUREFILE BINARY XML;
 
@@ -353,6 +353,7 @@ AS
     v_xml_document  XMLTYPE;
     v_is_xml_valid NUMBER;
     v_battle_exists NUMBER;
+    v_inserted_battle_log_id BATTLE_LOG.ID%type;
 BEGIN
     -- Check if the battle doesn't exist to avoid errors
     SELECT COUNT(*)
@@ -401,20 +402,24 @@ BEGIN
     -- Insert the generated XML into the BATTLE_LOG table
     -- A new row is inserted each time, providing versioning via GENERATION_TIMESTAMP
     INSERT INTO BATTLE_LOG (BATTLE_ID, XML_DOCUMENT) -- GENERATION_TIMESTAMP gets DEFAULT value
-    VALUES (p_battle_id, v_xml_document);
+    VALUES (p_battle_id, v_xml_document)
+    RETURNING ID INTO v_inserted_battle_log_id;
 
-    DBMS_OUTPUT.PUT_LINE('XML log generated and stored successfully for Battle ID: ' || p_battle_id);
+    DBMS_OUTPUT.PUT_LINE('XML log generated and stored successfully with ID: ' || v_inserted_battle_log_id);
 
     -- Validate the XML against the XSD schema
-    v_is_xml_valid := validate_battle_schema(p_battle_id => p_battle_id);
-    DBMS_OUTPUT.PUT_LINE('[DEBUG] Battle Log ' || p_battle_id || ' VALUE validate_battle_schema returned: ' || v_is_xml_valid);
+    v_is_xml_valid := get_battle_log_xsd_validation(p_battle_log_id => v_inserted_battle_log_id);
+    DBMS_OUTPUT.PUT_LINE('[DEBUG] Battle Log ' || v_inserted_battle_log_id || ' VALUE validate_battle_schema returned: ' || v_is_xml_valid);
 
+    -- Update the BATTLE_LOG.XML_IS_VALID value based on result
     IF v_is_xml_valid = 1 THEN
-        DBMS_OUTPUT.PUT_LINE('Battle Log ' || p_battle_id || ' XML is valid.');
+        DBMS_OUTPUT.PUT_LINE('Battle Log ' || p_battle_id || ' XML is valid');
+        UPDATE BATTLE_LOG SET XML_IS_VALID = 1 WHERE ID = v_inserted_battle_log_id;
     ELSIF v_is_xml_valid = 0 THEN
-        DBMS_OUTPUT.PUT_LINE('Battle Log ' || p_battle_id || ' XML is NOT valid or log does not exist.');
-    ELSE -- l_is_xml_valid = -1 (or whatever error code you chose)
-        DBMS_OUTPUT.PUT_LINE('Error occurred during XML validation for Battle Log ' || p_battle_id);
+        DBMS_OUTPUT.PUT_LINE('Battle Log ' || p_battle_id || ' XML is NOT valid');
+        UPDATE BATTLE_LOG SET XML_IS_VALID = 0 WHERE ID = v_inserted_battle_log_id;
+    ELSE -- when v_is_xml_valid = -1 or else
+        DBMS_OUTPUT.PUT_LINE('Error occurred during XML validation for Battle Log ID: ' || v_inserted_battle_log_id);
     END IF;
 
 EXCEPTION
@@ -464,8 +469,8 @@ BEGIN
     );
 END;
 
-CREATE OR REPLACE FUNCTION validate_battle_schema(
-    p_battle_id IN NUMBER
+CREATE OR REPLACE FUNCTION get_battle_log_xsd_validation(
+    p_battle_log_id IN BATTLE_LOG.ID%type
 ) RETURN NUMBER IS
     v_is_valid NUMBER;
 BEGIN
@@ -473,19 +478,19 @@ BEGIN
     SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchema.xsd')
     INTO v_is_valid
     FROM BATTLE_LOG
-    WHERE BATTLE_ID = p_battle_id;
+    WHERE ID = p_battle_log_id;
 
     RETURN v_is_valid;
 
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
-        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_id ' || p_battle_id);
+        DBMS_OUTPUT.PUT_LINE('battle_id not found when validating XML for battle_log_id ' || p_battle_log_id);
         RETURN -1;
 
     WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_id ' || p_battle_id || ': ' || SQLCODE || ' - ' || SQLERRM);
+        DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_log_id ' || p_battle_log_id || ': ' || SQLCODE || ' - ' || SQLERRM);
         RETURN -1;
-END validate_battle_schema;
+END get_battle_log_xsd_validation;
 
 ------------------------------------------------------------------------------------------------------------------------
     -- PLAYGROUND
@@ -522,7 +527,7 @@ END;
 
 -- Example of XML generation (assuming simulate_battle has already run for battle_id 1)
 BEGIN
-    generate_battle_log(p_battle_id => 4);
+    generate_battle_log(p_battle_id => 63);
     COMMIT;
 END;
 

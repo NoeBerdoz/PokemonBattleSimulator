@@ -475,16 +475,6 @@ BEGIN
     FROM BATTLE_LOG
     WHERE BATTLE_ID = p_battle_id;
 
-    IF v_is_valid = 1 THEN
-        UPDATE BATTLE_LOG
-        SET IS_VALID = 1
-        WHERE BATTLE_ID = p_battle_id;
-    ELSE
-        UPDATE BATTLE_LOG
-        SET IS_VALID = 0
-        WHERE BATTLE_ID = p_battle_id;
-    END IF;
-
     RETURN v_is_valid;
 
 EXCEPTION

@@ -14,6 +14,19 @@ public class Main {
 
         DataManager dataManager = new DataManager();
 
+        // Demonstration of retrieving an XML present in an XMLTYPE COLUMN from the database
+        String xmlDocument = dataManager.getBattleLogXml(10000);
+        System.out.println(xmlDocument);
+
+        // insertPokemon(10);
+
+
+    }
+
+    public static void insertPokemon(int number) throws IOException, InterruptedException {
+
+        DataManager dataManager = new DataManager();
+
         for (int pokemonIndex = 1; pokemonIndex <=10; pokemonIndex++) {
             HttpResponse<String> response = ApiService.sendHttpRequest("pokemon/" + pokemonIndex);
             PokemonSpecie pokemonSpecie = ApiService.serializePokemonSpecie(response.body());
@@ -25,5 +38,6 @@ public class Main {
                 SimpleLogger.error(error.getMessage());
             }
         }
+
     }
 }

@@ -5,10 +5,7 @@ import ch.nb.business.Stats;
 import ch.nb.persistence.connection.DatabaseConnection;
 import ch.nb.utils.SimpleLogger;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 
 public class DataManager {
 
@@ -83,6 +80,51 @@ public class DataManager {
         } catch (SQLException error) {
             SimpleLogger.error(error.getMessage());
         }
+    }
+
+    public String getBattleLogXml(int battleId) {
+
+        String sqlQuery = "SELECT * FROM BATTLE_LOG WHERE BATTLE_ID = ? ORDER BY CREATED_AT DESC FETCH FIRST 1 ROW ONLY";
+
+        String xmlString = null;
+        SQLXML sqlxml = null;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sqlQuery)) {
+
+            statement.setInt(1, battleId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+
+                if (resultSet.next()) {
+
+                    sqlxml = resultSet.getSQLXML("XML_DOCUMENT");
+                    if (sqlxml != null) {
+
+                        xmlString = sqlxml.getString();
+
+                    } else {
+                        SimpleLogger.warning("XML_DOCUMENT is NULL for battle ID: " + battleId);
+                    }
+                } else {
+                    SimpleLogger.error("No battle log found for battle ID: " + battleId);
+                }
+            }
+        } catch (SQLException error) {
+            SimpleLogger.error("Error retrieving XML log for battle ID " + battleId + ": " + error.getMessage());
+
+        } finally {
+            // JDBC standard JDBC require to free resources around SQLXML manually
+            if (sqlxml != null) {
+                try {
+                    sqlxml.free();
+                } catch (SQLException e) {
+                    SimpleLogger.error("Error freeing SQLXML resource: " + e.getMessage());
+                }
+            }
+        }
+
+        return xmlString;
     }
 
 }

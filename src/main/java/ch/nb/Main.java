@@ -9,17 +9,25 @@ import java.io.IOException;
 import java.net.http.HttpResponse;
 
 public class Main {
+    /* Before starting, make sure to copy the database.properties.exemple file to a database.properties file
+       and put your database credentials in there.
+
+       After configuring your database.properties file, you can insert Pokemon here, using the method insertPokemon().
+
+       When you have an existing BATTLE_LOG entry in the database, you can try to retrieve its XML_DOCUMENT here
+       with the method getBattleLogXml() from dataManager. Put the BATTLE.ID as a parameter. You will get the most
+       recent generated XML.
+     */
     public static void main(String[] args) throws IOException, InterruptedException {
         SimpleLogger.info("------ STARTING Pokemon Inserter -----");
 
         DataManager dataManager = new DataManager();
 
         // Demonstration of retrieving an XML present in an XMLTYPE COLUMN from the database
-        String xmlDocument = dataManager.getBattleLogXml(10000);
+        String xmlDocument = dataManager.getBattleLogXml(1);
         System.out.println(xmlDocument);
 
-        // insertPokemon(10);
-
+        // insertPokemon(10); // Uncomment me if you want to insert 10 Pokemon in the database.
 
     }
 
@@ -33,7 +41,6 @@ public class Main {
 
             try {
                 dataManager.insertPokemonSpecie(pokemonSpecie);
-                // SimpleLogger.info("[+] Added " + pokemonSpecie.getName() + " [" + pokemonIndex + "]");
             } catch (Exception error) {
                 SimpleLogger.error(error.getMessage());
             }

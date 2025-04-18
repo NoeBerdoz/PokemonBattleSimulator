@@ -1,3 +1,6 @@
+-----------------------------------------------------------------------
+-- Delete data and objects script
+-----------------------------------------------------------------------
 -- Disable all foreign key constraints before dropping tables
 ALTER TABLE ACTION DROP CONSTRAINT FK_ACTION_ROUND;
 ALTER TABLE ACTION DROP CONSTRAINT FK_ACTION_ACTING;
@@ -22,14 +25,15 @@ DROP TABLE POKEMON_SPECIE CASCADE CONSTRAINTS;
 DROP TABLE STAT CASCADE CONSTRAINTS;
 DROP TABLE BATTLE_LOG;
 
-DROP PROCEDURE SIMULATE_BATTLE;
 DROP PROCEDURE LOG_ACTION;
+DROP PROCEDURE SIMULATE_BATTLE;
+DROP PROCEDURE GENERATE_BATTLE_LOG;
+
 DROP FUNCTION CALCULATE_DAMAGE;
-DROP FUNCTION GENERATE_BATTLE_LOG;
 DROP FUNCTION GET_BATTLE_LOG_XSD_VALIDATION;
 
 BEGIN
-  -- Delete the schema, if it already exists.
-  DBMS_XMLSCHEMA.deleteSchema('BattleLogSchemaV1.xsd',4);
-  COMMIT;
+    -- Delete the schema, if it already exists.
+    DBMS_XMLSCHEMA.deleteSchema('BattleLogSchemaV1.xsd',4);
+    COMMIT;
 END;

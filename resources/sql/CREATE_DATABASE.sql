@@ -1,3 +1,6 @@
+---------------------------------------------------------------------------------------
+-- All needed tables and objects for the automated battle simulation and XML generation
+---------------------------------------------------------------------------------------
 -- Create STAT table first as POKEMON_SPECIE depends on it
 CREATE TABLE STAT
 (
@@ -70,8 +73,6 @@ CREATE TABLE ROUND
     CONSTRAINT FK_ROUND_BATTLE FOREIGN KEY (BATTLE_ID) REFERENCES BATTLE (ID),
     CONSTRAINT UNIQUE_ROUND_PER_BATTLE UNIQUE (BATTLE_ID, ROUND_NUMBER)
 );
-
-SELECT * FROM ROUND;
 
 -- Create ACTION table with multiple foreign keys
 CREATE TABLE ACTION
@@ -181,7 +182,7 @@ CREATE OR REPLACE PROCEDURE SIMULATE_BATTLE(
     v_round_id         NUMBER;
     v_winner_id        NUMBER;
 
-    -- Pokémon variables
+    -- Pokemon variables
     v_pokemon1         BATTLE_POKEMON%ROWTYPE;
     v_pokemon2         BATTLE_POKEMON%ROWTYPE;
     v_attacker         BATTLE_POKEMON%ROWTYPE;
@@ -308,7 +309,7 @@ BEGIN
             VALUES (v_battle_id, v_round_number)
             RETURNING ID INTO v_round_id;
 
--- First attack
+            -- First attack
             v_damage := CALCULATE_DAMAGE(
                     p_attacker_attack => v_attacker_attack,
                     p_defender_defense => v_defender_defense
@@ -393,7 +394,7 @@ BEGIN
 
     DBMS_OUTPUT.PUT_LINE('Generating XML log for Battle ID: ' || p_battle_id);
 
-    -- Construct the XML using SQL/XML functions
+    -- Construct the XML
     SELECT XMLElement("BattleLog",
                       XMLAgg( -- Aggregate all Round elements
                               XMLElement("Round",
@@ -404,12 +405,12 @@ BEGIN
                                                             XMLAttributes( -- Attributes for the Action element
                                                             ps_acting.NAME AS "pokemon", -- Acting Pokemon's name
                                                             a.ACTING_HP AS
-                                                            "hp", -- Acting Pokemon's HP *before* this action
+                                                            "hp", -- Acting Pokemon's HP before this action
                                                             ps_target.NAME AS "target", -- Target Pokemon's name
                                                             a.DAMAGE AS "damage" -- Damage dealt in this action
                                                      )
                                                  ) ORDER BY
-                                                 a.ID -- Order actions within a round chronologically (assuming ID sequence implies order)
+                                                 a.ID -- Order actions within a round chronologically
                                          ) -- End XMLAgg for Actions
                               ) ORDER BY r.ROUND_NUMBER -- Order rounds chronologically
                       ) -- End XMLAgg for Rounds
@@ -422,11 +423,10 @@ BEGIN
              JOIN BATTLE_POKEMON bp_target ON a.TARGET_BATTLE_POKEMON_ID = bp_target.ID
              JOIN POKEMON_SPECIE ps_target ON bp_target.POKEMON_SPECIE_ID = ps_target.ID
     WHERE r.BATTLE_ID = p_battle_id -- Filter for the specific battle
-    GROUP BY r.ID, r.ROUND_NUMBER; -- Group actions by Round ID/Number to aggregate Actions per Round
+    GROUP BY r.ID, r.ROUND_NUMBER; -- Group actions by Round ID and Number to aggregate Actions per Round
 
     -- Insert the generated XML into the BATTLE_LOG table
-    -- A new row is inserted each time, providing versioning via GENERATION_TIMESTAMP
-    INSERT INTO BATTLE_LOG (BATTLE_ID, XML_DOCUMENT) -- GENERATION_TIMESTAMP gets DEFAULT value
+    INSERT INTO BATTLE_LOG (BATTLE_ID, XML_DOCUMENT) -- CREATED_AT column will get DEFAULT value
     VALUES (p_battle_id, v_xml_document)
     RETURNING ID INTO v_inserted_battle_log_id;
 
@@ -460,7 +460,7 @@ END GENERATE_BATTLE_LOG;
 -- Registration of the XSD Schema
 BEGIN
     DBMS_XMLSCHEMA.registerSchema(
-            SCHEMAURL => 'BattleLogSchemaV1.xsd', -- should normally be a URI
+            SCHEMAURL => 'BattleLogSchemaV1.xsd', -- should normally be a URI, kept simple for the project scope
             SCHEMADOC => XMLType(
                     '<?xml version="1.0" encoding="UTF-8"?>
                     <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -504,22 +504,4 @@ BEGIN
                          )
     );
     COMMIT;
-END;
-
-------------------------------------------------------------------------------------------------------------------------
-    -- PLAYGROUND
-------------------------------------------------------------------------------------------------------------------------
-
--- Helper loop to check if BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
-DECLARE
-    v_valid NUMBER;
-BEGIN
-    FOR record IN (SELECT ID, XML_DOCUMENT, XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd') AS IS_VALID
-                   FROM BATTLE_LOG) LOOP
-            IF record.IS_VALID = 1 THEN
-                DBMS_OUTPUT.PUT_LINE('Battle Log ID ' || record.ID || ': XML is VALID.');
-            ELSE
-                DBMS_OUTPUT.PUT_LINE('Battle Log ID ' || record.ID || ': XML is INVALID.');
-            END IF;
-        END LOOP;
 END;

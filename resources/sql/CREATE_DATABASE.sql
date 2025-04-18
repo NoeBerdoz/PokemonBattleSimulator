@@ -4,23 +4,29 @@ CREATE TABLE STAT
     ID              NUMBER GENERATED AS IDENTITY PRIMARY KEY,
     HP              NUMBER
         CONSTRAINT NN_STAT_HP NOT NULL,
+        CONSTRAINT CH_STAT_HP CHECK (HP >= 0 AND HP <= 255),
     SPEED           NUMBER
-        CONSTRAINT NN_STATS_SPEED NOT NULL,
+        CONSTRAINT NN_STAT_SPEED NOT NULL,
+        CONSTRAINT CH_STAT_SPEED CHECK (SPEED >= 0 AND SPEED <= 255),
     ATTACK          NUMBER
-        CONSTRAINT NN_STATS_ATTACK NOT NULL,
+        CONSTRAINT NN_STAT_ATTACK NOT NULL,
+        CONSTRAINT CH_STAT_ATTACK CHECK (ATTACK >= 0 AND ATTACK <= 255),
     DEFENSE         NUMBER
-        CONSTRAINT NN_STATS_DEFENSE NOT NULL,
+        CONSTRAINT NN_STAT_DEFENSE NOT NULL,
+        CONSTRAINT CH_STAT_DEFENSE CHECK (DEFENSE >= 0 AND DEFENSE <= 255),
     SPECIAL_ATTACK  NUMBER
-        CONSTRAINT NN_STATS_SPECIAL_ATTACK NOT NULL,
+        CONSTRAINT NN_STAT_SPECIAL_ATTACK NOT NULL,
+        CONSTRAINT CH_STAT_SPECIAL_ATTACK CHECK (SPECIAL_ATTACK >= 0 AND SPECIAL_ATTACK <= 255),
     SPECIAL_DEFENSE NUMBER
-        CONSTRAINT NN_STATS_SPECIAL_DEFENSE NOT NULL
+        CONSTRAINT NN_STAT_SPECIAL_DEFENSE NOT NULL,
+        CONSTRAINT CH_STAT_SPECIAL_DEFENSE CHECK (SPECIAL_DEFENSE >= 0 AND SPECIAL_DEFENSE <= 255)
 );
 
 -- Create POKEMON_SPECIE table with foreign key to STAT
 CREATE TABLE POKEMON_SPECIE
 (
     ID      NUMBER GENERATED AS IDENTITY PRIMARY KEY,
-    NAME    VARCHAR2(255)
+    NAME    VARCHAR2(12)
         CONSTRAINT U_POKEMON_SPECIE_NAME UNIQUE
         CONSTRAINT NN_POKEMON_SPECIE_NAME NOT NULL,
     STAT_ID NUMBER
@@ -58,11 +64,14 @@ CREATE TABLE ROUND
     ID           NUMBER GENERATED AS IDENTITY PRIMARY KEY,
     ROUND_NUMBER NUMBER
         CONSTRAINT NN_ROUND_NUMBER NOT NULL,
+        CONSTRAINT CH_ROUND_NUMBER CHECK (ROUND_NUMBER > 0),
     BATTLE_ID    NUMBER
         CONSTRAINT NN_ROUND_BATTLE_ID NOT NULL,
     CONSTRAINT FK_ROUND_BATTLE FOREIGN KEY (BATTLE_ID) REFERENCES BATTLE (ID),
     CONSTRAINT UNIQUE_ROUND_PER_BATTLE UNIQUE (BATTLE_ID, ROUND_NUMBER)
 );
+
+SELECT * FROM ROUND;
 
 -- Create ACTION table with multiple foreign keys
 CREATE TABLE ACTION
@@ -90,7 +99,7 @@ CREATE TABLE BATTLE_LOG
     BATTLE_ID    NUMBER                                        NOT NULL,
     XML_DOCUMENT XMLTYPE,
     CREATED_AT   TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, -- Records when the log was inserted
-    XML_IS_VALID     NUMBER(1, 0) DEFAULT 0 NOT NULL,
+    XML_IS_VALID NUMBER(1, 0) DEFAULT 0 NOT NULL,
     CONSTRAINT CH_XML_IS_VALID CHECK (XML_IS_VALID IN (0, 1)),
     CONSTRAINT FK_BATTLE_LOG_BATTLE FOREIGN KEY (BATTLE_ID) REFERENCES BATTLE (ID)
 ) XMLTYPE XML_DOCUMENT STORE AS SECUREFILE BINARY XML;
@@ -99,19 +108,13 @@ CREATE TABLE BATTLE_LOG
 -- FUNCTIONS
 -----------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION calculate_damage(
-    p_attacker_attack IN NUMBER,
-    p_defender_defense IN NUMBER
+CREATE OR REPLACE FUNCTION CALCULATE_DAMAGE(
+    p_attacker_attack IN STAT.ATTACK%type,
+    p_defender_defense IN STAT.DEFENSE%type
 ) RETURN NUMBER IS
     v_base_damage   NUMBER;
     v_random_factor NUMBER;
 BEGIN
-    -- Base damage formula: (Attack / Defense) * 10 + 2
-    -- This ensures:
-    -- - When Attack = Defense: ~12 damage
-    -- - Damage scales proportionally
-    -- - Minimum 2 damage guaranteed
-
     v_base_damage := (p_attacker_attack / p_defender_defense) * 10 + 2;
 
     -- Add slight randomness (85%-115% of calculated damage)
@@ -119,9 +122,9 @@ BEGIN
 
     -- Round to nearest whole number and ensure minimum 1 damage
     RETURN GREATEST(ROUND(v_base_damage * v_random_factor), 1);
-END calculate_damage;
+END CALCULATE_DAMAGE;
 
-CREATE OR REPLACE FUNCTION get_battle_log_xsd_validation(
+CREATE OR REPLACE FUNCTION GET_BATTLE_LOG_XSD_VALIDATION(
     p_battle_log_id IN BATTLE_LOG.ID%type
 ) RETURN NUMBER IS
     v_is_valid NUMBER;
@@ -142,13 +145,13 @@ EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error validating XML for battle_log_id ' || p_battle_log_id || ': ' || SQLCODE || ' - ' || SQLERRM);
         RETURN -1;
-END get_battle_log_xsd_validation;
+END GET_BATTLE_LOG_XSD_VALIDATION;
 
 -----------------------------------------------------------------------
 -- PROCEDURES
 -----------------------------------------------------------------------
 
-CREATE OR REPLACE PROCEDURE log_action(
+CREATE OR REPLACE PROCEDURE LOG_ACTION(
     p_round_id IN NUMBER,
     p_acting_id IN NUMBER,
     p_target_id IN NUMBER,
@@ -166,9 +169,9 @@ BEGIN
             p_target_id,
             p_current_hp,
             p_damage);
-END log_action;
+END LOG_ACTION;
 
-CREATE OR REPLACE PROCEDURE simulate_battle(
+CREATE OR REPLACE PROCEDURE SIMULATE_BATTLE(
     p_pokemon_specie1_id IN NUMBER,
     p_pokemon_specie2_id IN NUMBER
 ) AS
@@ -306,7 +309,7 @@ BEGIN
             RETURNING ID INTO v_round_id;
 
 -- First attack
-            v_damage := calculate_damage(
+            v_damage := CALCULATE_DAMAGE(
                     p_attacker_attack => v_attacker_attack,
                     p_defender_defense => v_defender_defense
                         );
@@ -315,14 +318,14 @@ BEGIN
 
 
             -- Log attacker action
-            log_action(v_round_id, v_attacker_id, v_defender_id, v_attacker_hp, v_damage);
+            LOG_ACTION(v_round_id, v_attacker_id, v_defender_id, v_attacker_hp, v_damage);
             v_defender_hp := GREATEST(v_defender_hp - v_damage, 0);
 
             DBMS_OUTPUT.PUT_LINE(v_defender_name || ' HP reduced to ' || v_defender_hp);
 
             -- Second attack if defender still alive
             IF v_defender_hp > 0 THEN
-                v_damage := calculate_damage(
+                v_damage := CALCULATE_DAMAGE(
                         p_attacker_attack => v_defender_attack,
                         p_defender_defense => v_attacker_defense
                             );
@@ -330,7 +333,7 @@ BEGIN
                                      ' for ' || v_damage || ' damage');
 
                 -- Log defender action
-                log_action(v_round_id, v_defender_id, v_attacker_id, v_defender_hp, v_damage);
+                LOG_ACTION(v_round_id, v_defender_id, v_attacker_id, v_defender_hp, v_damage);
                 v_attacker_hp := GREATEST(v_attacker_hp - v_damage, 0);
 
                 DBMS_OUTPUT.PUT_LINE(v_attacker_name || ' HP reduced to ' || v_attacker_hp);
@@ -359,16 +362,16 @@ BEGIN
 
     DBMS_OUTPUT.PUT_LINE('Generating the battle history XML document...');
     -- Generate and store battle log
-    generate_battle_log(p_battle_id => v_battle_id);
+    GENERATE_BATTLE_LOG(p_battle_id => v_battle_id);
 
 EXCEPTION
     WHEN OTHERS THEN
         ROLLBACK;
         DBMS_OUTPUT.PUT_LINE('ERROR: ' || SQLERRM);
         RAISE;
-END simulate_battle;
+END SIMULATE_BATTLE;
 
-CREATE OR REPLACE PROCEDURE generate_battle_log(
+CREATE OR REPLACE PROCEDURE GENERATE_BATTLE_LOG(
     p_battle_id IN BATTLE.ID%TYPE
 )
 AS
@@ -430,7 +433,7 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('XML log generated and stored successfully with ID: ' || v_inserted_battle_log_id);
 
     -- Get the validation value of the XML against the XSD schema
-    v_is_xml_valid := get_battle_log_xsd_validation(p_battle_log_id => v_inserted_battle_log_id);
+    v_is_xml_valid := GET_BATTLE_LOG_XSD_VALIDATION(p_battle_log_id => v_inserted_battle_log_id);
 
     -- Update the BATTLE_LOG.XML_IS_VALID value based on result
     IF v_is_xml_valid = 1 THEN
@@ -451,7 +454,7 @@ EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error generating XML log for Battle ID ' || p_battle_id || ': ' || SQLERRM);
         RAISE;
-END generate_battle_log;
+END GENERATE_BATTLE_LOG;
 /
 
 -- Registration of the XSD Schema
@@ -468,6 +471,13 @@ BEGIN
                             </xs:restriction>
                         </xs:simpleType>
 
+                        <xs:simpleType name="HpType">
+                            <xs:restriction base="xs:nonNegativeInteger">
+                                <xs:minInclusive value="0"/>
+                                <xs:maxInclusive value="255"/>
+                            </xs:restriction>
+                        </xs:simpleType>
+
                         <xs:element name="BattleLog">
                             <xs:complexType>
                                 <xs:sequence>
@@ -477,13 +487,13 @@ BEGIN
                                                 <xs:element name="Action" maxOccurs="unbounded">
                                                     <xs:complexType>
                                                         <xs:attribute name="pokemon" type="PokemonNameType" use="required"/>
-                                                        <xs:attribute name="hp" type="xs:integer" use="required"/>
+                                                        <xs:attribute name="hp" type="HpType" use="required"/>
                                                         <xs:attribute name="target" type="PokemonNameType" use="required"/>
-                                                        <xs:attribute name="damage" type="xs:integer" use="required"/>
+                                                        <xs:attribute name="damage" type="xs:positiveInteger" use="required"/>
                                                     </xs:complexType>
                                                 </xs:element>
                                             </xs:sequence>
-                                            <xs:attribute name="number" type="xs:integer" use="required"/>
+                                            <xs:attribute name="number" type="xs:positiveInteger" use="required"/>
                                         </xs:complexType>
                                     </xs:element>
                                 </xs:sequence>
@@ -500,15 +510,7 @@ END;
     -- PLAYGROUND
 ------------------------------------------------------------------------------------------------------------------------
 
--- Helper select to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
-SELECT *
-FROM BATTLE_LOG
-WHERE XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd') = 1;
-
-SELECT XMLISVALID(XML_DOCUMENT, 'BattleLogSchemaV1.xsd')
-FROM BATTLE_LOG;
-
--- Helper loop to check if a BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
+-- Helper loop to check if BATTLE_LOG.XML_DOCUMENT entry is valid against the XSD schema
 DECLARE
     v_valid NUMBER;
 BEGIN
@@ -520,17 +522,4 @@ BEGIN
                 DBMS_OUTPUT.PUT_LINE('Battle Log ID ' || record.ID || ': XML is INVALID.');
             END IF;
         END LOOP;
-END;
-
-BEGIN
-    simulate_battle(
-            p_pokemon_specie1_id => 9, -- Blastoise
-            p_pokemon_specie2_id => 6 -- Charizard
-    );
-END;
-
--- Example of XML generation (assuming simulate_battle has already run for battle_id 1)
-BEGIN
-    generate_battle_log(p_battle_id => 63);
-    COMMIT;
 END;

@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
+    <xs:simpleType name="PokemonNameType">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="[A-Z][a-z]*"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="HpType">
+        <xs:restriction base="xs:nonNegativeInteger">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="255"/>
+        </xs:restriction>
+    </xs:simpleType>
+
     <xs:element name="BattleLog">
         <xs:complexType>
             <xs:sequence>
@@ -9,14 +22,14 @@
                         <xs:sequence>
                             <xs:element name="Action" maxOccurs="unbounded">
                                 <xs:complexType>
-                                    <xs:attribute name="pokemon" type="xs:string" use="required"/>
-                                    <xs:attribute name="hp" type="xs:integer" use="required"/>
-                                    <xs:attribute name="target" type="xs:string" use="required"/>
-                                    <xs:attribute name="damage" type="xs:integer" use="required"/>
+                                    <xs:attribute name="pokemon" type="PokemonNameType" use="required"/>
+                                    <xs:attribute name="hp" type="HpType" use="required"/>
+                                    <xs:attribute name="target" type="PokemonNameType" use="required"/>
+                                    <xs:attribute name="damage" type="xs:positiveInteger" use="required"/>
                                 </xs:complexType>
                             </xs:element>
                         </xs:sequence>
-                        <xs:attribute name="number" type="xs:integer" use="required"/>
+                        <xs:attribute name="number" type="xs:positiveInteger" use="required"/>
                     </xs:complexType>
                 </xs:element>
             </xs:sequence>
